@@ -1,0 +1,348 @@
+
+<template>
+  <div v-loading="loading">
+    <div style="margin-top: 10px;display: flex;justify-content: center">
+      <el-input
+        placeholder="任务名查询..."
+        prefix-icon="el-icon-search"
+        v-model="keywords"
+        style="width: 400px"
+        size="small"
+      >
+      </el-input>
+      <el-button
+        type="primary"
+        icon="el-icon-search"
+        size="small"
+        style="margin-left: 3px"
+        @click=""
+      >搜索
+      </el-button>
+    </div>
+    <div style="display: flex;justify-content: space-around;flex-wrap: wrap">
+      <el-card
+        style="width:330px;margin-top: 10px;"
+        v-for="(job,index) in jobList"
+        :key="index"
+        v-loading="cardloading[index]"
+      >
+        <div
+          slot="header"
+          style="text-align: left"
+        >
+          <span>{{job.name}}</span>
+          <el-button
+            style="float: right; padding: 3px 0;color: #ff0509"
+            type="text"
+            icon="el-icon-delete"
+            @click="deleteJob(job.id)"
+          >删除 &nbsp;&nbsp;
+          </el-button>
+          &nbsp;&nbsp;
+          <el-button
+            style="float: right; padding: 3px 0;color: blue"
+            type="text"
+            icon="el-icon-edit-outline"
+            @click="editJob(job)"
+          >编辑 &nbsp;&nbsp;
+          </el-button>
+          <el-dialog
+            title="修改任务"
+            :visible.sync="editVisible"
+          >
+            <el-form
+              :inline="false"
+              :model="editJobData"
+            >
+              <el-form-item
+                label="任务名称"
+                label-width=120px
+              >
+                <el-input
+                  v-model="editJobData.name"
+                  auto-complete="off"
+                ></el-input>
+              </el-form-item>
+              <el-form-item
+                label="任务类型"
+                label-width=120px
+              >
+                <el-select
+                  v-model="editJobData.jobGroup"
+                  placeholder="请选择任务类型"
+                >
+                  <el-option
+                    label="警情盯办"
+                    value="警情盯办"
+                  ></el-option>
+                  <el-option
+                    label="指挥调度"
+                    value="指挥调度"
+                  ></el-option>
+                  <el-option
+                    label="自定义"
+                    value="自定义"
+                  ></el-option>
+                </el-select>
+              </el-form-item>
+              <el-form-item
+                label="cron"
+                label-width=120px
+              >
+                <el-input
+                  v-model="editJobData.cron"
+                  auto-complete="off"
+                ></el-input>
+              </el-form-item>
+              <el-form-item
+                label="描述"
+                label-width=120px
+              >
+                <el-input
+                  v-model="editJobData.description"
+                  auto-complete="off"
+                  type="textarea"
+                ></el-input>
+              </el-form-item>
+              <el-form-item
+                label="jvm运行参数"
+                label-width=120px
+              >
+                <el-input
+                  v-model="editJobData.vmParam"
+                  auto-complete="off"
+                ></el-input>
+              </el-form-item>
+              <el-form-item
+                label="入口参数"
+                label-width=120px
+              >
+                <el-input
+                  v-model="editJobData.parameter"
+                  auto-complete="off"
+                ></el-input>
+              </el-form-item>
+              <el-form-item
+                label="jar包路径"
+                label-width=120px
+              >
+                {{editJobData.jarPath}}
+                <el-upload
+                  class="upload-demo"
+                  action="/vetu/view/upload/jar"
+                  :on-success="addJarPath"
+                  multiple
+                  :limit="1"
+                  ref="uploadJar"
+                >
+                  <el-button>
+                    重新上传
+                  </el-button>
+                </el-upload>
+              </el-form-item>
+              <el-form-item
+                label="源码路径"
+                label-width=120px
+              >
+                {{editJobData.srcPath}}
+                <el-upload
+                  class="upload-demo"
+                  action="/vetu/view/upload/src"
+                  :on-success="addSrcPath"
+                  multiple
+                  :limit="1"
+                  ref="uploadSrc"
+                >
+                  <el-button>
+                    重新上传
+                  </el-button>
+                </el-upload>
+              </el-form-item>
+            </el-form>
+            <div
+              slot="footer"
+              class="dialog-footer"
+            >
+              <el-button @click="editVisible = false">取 消</el-button>
+              <el-button
+                type="primary"
+                @click="submitEdit(editJobData)"
+              >确 定</el-button>
+            </div>
+          </el-dialog>
+
+        </div>
+        <div>
+          <div></div>
+          <div style="text-align: left;color:#20a0ff;font-size: 12px;margin-top: 13px">
+            <span>类型:</span>&nbsp;&nbsp;<span>{{job.jobGroup}}</span>
+          </div>
+          <div style="text-align: left;color:#20a0ff;font-size: 12px;margin-top: 13px">
+            <span>cron:</span>&nbsp;&nbsp;<span>{{job.cron}}</span>
+          </div>
+          <div style="text-align: left;color:#20a0ff;font-size: 12px;margin-top: 13px">
+            <span>描述:</span>&nbsp;&nbsp;<span>{{job.description}}</span>
+          </div>
+          <div style="text-align: left;color:#20a0ff;font-size: 12px;margin-top: 13px;display: flex;align-items: center">
+            <span>任务状态: &nbsp; &nbsp;</span>
+            <el-switch
+              style="display: block"
+              v-model="job.open"
+              active-text="启用"
+              active-color="#13ce66"
+              inactive-text="禁用"
+              @change="updateStatus(job)"
+            >
+            </el-switch>
+          </div>
+          <div style="text-align: left;color:#20a0ff;font-size: 12px;margin-top: 13px">
+            <span>路径:</span>&nbsp;&nbsp;<span>{{job.jarPath}}</span>&nbsp;&nbsp;
+          </div>
+          <div style="text-align: center;color:#20a0ff;font-size: 12px;margin-top: 13px">
+            <el-button
+              type="primary"
+              :disabled="!job.hasSrcCode"
+              @click="downloadSrcCode(job.id)"
+            >源码下载</el-button>
+          </div>
+        </div>
+      </el-card>
+    </div>
+  </div>
+</template>
+<script>
+import { getRequest } from '../utils/api'
+import { putRequest } from '../utils/api'
+import { deleteRequest } from '../utils/api'
+import { postRequest } from '../utils/api'
+export default {
+  mounted: function () {
+    this.loading = true;
+    this.loadJobList();
+    this.cardloading = Array.apply(null, Array(20)).map(function (item, i) {
+      return false;
+    });
+    this.eploading = Array.apply(null, Array(20)).map(function (item, i) {
+      return false;
+    });
+  },
+  methods: {
+    loadJobList() {
+      var _this = this;
+      postRequest("/vetl/job/getAll", '{size:10,current:1}').then(
+        resp => {
+          var res = resp.data;
+          _this.loading = false;
+          if (res.code == 200) {
+            _this.jobList = res.data;
+            console.log(res.data)
+          } else if (res.code == 401) {
+            _this.$message({ type: 'error', message: res.message });
+            _this.$router.replace({ path: '/' });
+          } else if (res.code == 500) {
+            _this.$message({ type: 'error', message: res.message });
+          }
+        }
+      );
+    },
+    updateStatus(job) {
+      var _this = this;
+      this.loading = true;
+      postRequest('/vetu/view/updateJob', job
+      ).then(resp => {
+        _this.loading = false;
+        var res = resp.data;
+        if (res.code == 200) {
+          loadJobList()
+        } else {
+          _this.$message({ type: 'error', message: res.message });
+        }
+      }
+      );
+    },
+    downloadSrcCode(id) {
+      this.loading = true;
+      let a = document.createElement('a')
+      a.href = "/vetu/view/downloadSrcCode/" + id
+      a.click();
+      this.loading = false;
+    },
+
+    deleteJob(id) {
+      var _this = this;
+      _this.$confirm('确定删除这个任务吗', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(function () {
+        _this.loading = true
+        getRequest('/vetu/view/delete/', id
+        ).then(resp => {
+          var res = resp.data;
+          if (res.code == 200) {
+            _this.loadJobList();
+            _this.loading = false;
+          } else {
+            _this.$message({ type: 'error', message: res.message });
+          }        }
+        )
+      }
+      )
+
+    },
+    editJob(job) {
+      this.editJobData = job;
+      this.editVisible = true;
+    },
+    addJarPath(response) {
+      if (response.code == 200) {
+        this.editJobData.jarPath = response.data;
+      } else {
+        this.$message({ type: 'error', message: response.message });
+        this.$refs.uploadJar.clearFiles();
+      }
+
+    },
+    addSrcPath(response) {
+      if (response.code == 200) {
+        this.editJobData.srcPath = response.data;
+      } else {
+        this.$message({ type: 'error', message: response.message });
+        this.$refs.uploadSrc.clearFiles();
+      }
+    },
+    submitEdit(val){
+      this.loading = true;
+      this.updateStatus(val);
+      this.loading = false;
+      this.editVisible = false;
+
+    }
+  },
+  data() {
+    return {
+      editVisible: false,
+      loading: false,
+      eploading: [],
+      cardloading: [],
+      keywords: '',
+      allRoles: [],
+      roles: [],
+      cpRoles: [],
+      jobList: [],
+      editJobData: {
+        id: '',
+        name: '',
+        jobGroup: '',
+        cron: '',
+        parameter: '',
+        description: '',
+        vmParam: '',
+        jarPath: '',
+        status: '',
+        srcPath: ''
+      }
+    }
+  }
+}
+</script>
